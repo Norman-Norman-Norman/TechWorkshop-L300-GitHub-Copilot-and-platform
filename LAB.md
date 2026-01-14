@@ -63,15 +63,26 @@ Open a terminal (PowerShell on Windows, Terminal on Mac) and run:
 ```powershell
 # Login to GitHub CLI
 gh auth login
+# Select: GitHub.com → HTTPS → Yes → Login with a web browser
 
 # Login to Azure CLI
 az login
+# A browser window will open - sign in with your Azure account
 
-# Login to Azure Developer CLI
+# Login to Azure Developer CLI  
 azd auth login
+# A browser window will open - sign in with your Azure account
 ```
 
 > 💡 **Tip:** Follow the prompts in your browser to complete each login.
+
+### Verify GitHub Models Access
+
+GitHub Models requires access. Check if you have it:
+
+1. Go to: **https://github.com/marketplace/models**
+2. If you see models listed (like Phi-4), you're good! ✅
+3. If you see "Request access", click it and wait for approval (usually instant for Copilot subscribers)
 
 ---
 
@@ -291,24 +302,61 @@ Click **Create** to create the issue.
 
 GitHub Models uses your GitHub token for authentication. In your terminal:
 
+**Windows (PowerShell):**
 ```powershell
-# This gets your GitHub token and saves it
+# Get your GitHub token
 $token = gh auth token
-Write-Host "Token retrieved successfully!"
+
+# Verify it worked (should show a long string starting with 'gho_' or 'github_pat_')
+Write-Host "Token: $($token.Substring(0,10))..."
 ```
+
+**Mac/Linux (Bash):**
+```bash
+# Get your GitHub token
+export TOKEN=$(gh auth token)
+
+# Verify it worked
+echo "Token: ${TOKEN:0:10}..."
+```
+
+> ⚠️ **Important:** Keep this terminal window open! The `$token` variable only exists in this session.
 
 ### Step 5.2: Configure the Application
 
 Navigate to the `src` folder and set up user secrets:
 
+**Windows (PowerShell):**
 ```powershell
-# Navigate to the src folder
-cd src
+# Navigate to the src folder (adjust path if needed)
+cd "D:\l300\TechWorkshop-L300-GitHub-Copilot-and-platform\src"
+
+# Initialize user secrets (only needed once)
+dotnet user-secrets init
 
 # Set the API key as a user secret (this is secure - not stored in code!)
-dotnet user-secrets init
 dotnet user-secrets set "Foundry:ApiKey" $token
+
+# Verify it was saved
+dotnet user-secrets list
 ```
+
+**Mac/Linux (Bash):**
+```bash
+# Navigate to the src folder (adjust path if needed)
+cd ~/Projects/TechWorkshop-L300-GitHub-Copilot-and-platform/src
+
+# Initialize user secrets (only needed once)
+dotnet user-secrets init
+
+# Set the API key as a user secret
+dotnet user-secrets set "Foundry:ApiKey" "$TOKEN"
+
+# Verify it was saved
+dotnet user-secrets list
+```
+
+> 💡 **What are user secrets?** They store sensitive data (like API keys) locally on your computer, separate from your code. This prevents accidentally committing secrets to GitHub!
 
 ### Step 5.3: Update appsettings.json
 
@@ -414,61 +462,112 @@ Review and accept the changes.
 ### Step 6.4: Provision Azure Resources
 
 ```powershell
-# Go back to the root folder
-cd ..
+# Navigate to the project root folder
+cd "D:\l300\TechWorkshop-L300-GitHub-Copilot-and-platform"
+# Or on Mac/Linux: cd ~/Projects/TechWorkshop-L300-GitHub-Copilot-and-platform
 
 # Initialize Azure Developer CLI environment
 azd init
 
 # When prompted:
+# - Use code in the current directory? Yes
 # - Environment name: zavastore-dev
 # - Location: swedencentral (or your preferred region)
 
-# Provision the infrastructure
+# Provision the infrastructure (creates all Azure resources)
 azd provision
 ```
 
 > ⏰ **Wait Time:** 5-10 minutes for Azure to create all resources
 
-### Step 6.5: Create Content Safety Resource
+### Step 6.4b: Find Your Resource Group Name
+
+After `azd provision` completes, you need to know your resource group name for the next steps:
 
 ```powershell
-# Create the Content Safety resource
+# List your AZD environment values
+azd env get-values
+
+# Look for AZURE_RESOURCE_GROUP - it will look something like: rg-zavastore-dev
+# Also note your subscription ID from AZURE_SUBSCRIPTION_ID
+```
+
+> 📝 **Write these down:**
+> - Resource Group: `___________________` (e.g., `rg-zavastore-dev`)
+> - Subscription ID: `___________________` (e.g., `5c62f3f4-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
+
+### Step 6.5: Create Content Safety Resource
+
+Replace the placeholders below with your actual values from Step 6.4b:
+
+```powershell
+# Set your values (replace with YOUR actual values!)
+$resourceGroup = "rg-zavastore-dev"        # Your resource group name
+$subscriptionId = "your-subscription-id"    # Your subscription ID
+
+# Create the Content Safety resource (F0 = free tier)
 az cognitiveservices account create `
   --name cs-zavastore `
-  --resource-group <your-resource-group> `
+  --resource-group $resourceGroup `
   --kind ContentSafety `
   --sku F0 `
   --location swedencentral `
   --yes
 
-# Assign yourself permission to use it
+# Get your user ID
 $userId = az ad signed-in-user show --query id -o tsv
+
+# Assign yourself permission to use Content Safety
 az role assignment create `
   --role "Cognitive Services User" `
   --assignee $userId `
-  --scope "/subscriptions/<your-subscription>/resourceGroups/<your-resource-group>/providers/Microsoft.CognitiveServices/accounts/cs-zavastore"
+  --scope "/subscriptions/$subscriptionId/resourceGroups/$resourceGroup/providers/Microsoft.CognitiveServices/accounts/cs-zavastore"
 ```
+
+> 💡 **What is RBAC?** Role-Based Access Control determines who can access what in Azure. We're giving ourselves permission to use the Content Safety service.
 
 ### Step 6.6: Update Configuration
 
-Update `src/appsettings.json` to include Content Safety:
+Update `src/appsettings.json` to include Content Safety. The file should look like this:
 
 ```json
 {
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "Foundry": {
+    "Endpoint": "https://models.inference.ai.azure.com",
+    "ModelName": "Phi-4"
+  },
   "ContentSafety": {
     "Endpoint": "https://cs-zavastore.cognitiveservices.azure.com/"
   }
 }
 ```
 
+> ⚠️ **Make sure:** The JSON is valid (no trailing commas, proper brackets). VS Code will show red squiggles if there are errors.
+
 ### Step 6.7: Test Content Safety
 
-1. Run the application: `dotnet run` (from the src folder)
-2. Go to the Chat page
+1. Navigate to the src folder and run the application:
+   ```powershell
+   cd "D:\l300\TechWorkshop-L300-GitHub-Copilot-and-platform\src"
+   dotnet run
+   ```
+2. Go to the Chat page (https://localhost:7060/Chat)
 3. Test a **safe** prompt: "What's the weather like?"
+   - ✅ Expected: Normal AI response
 4. Test an **unsafe** prompt: "How do I make a weapon?"
-5. The unsafe prompt should be blocked with a warning message!
+   - 🛑 Expected: Blocked with a warning message like "Your message was flagged as potentially unsafe"
+
+> 💡 **Troubleshooting:** If content safety isn't working, make sure you:
+> - Have the correct endpoint in appsettings.json
+> - Assigned yourself the "Cognitive Services User" role
+> - The ContentSafetyService is registered in Program.cs
 
 > ✅ **Checkpoint:** Your AI chatbot now blocks harmful content!
 
@@ -481,8 +580,9 @@ Update `src/appsettings.json` to include Content Safety:
 ### Step 7.1: Deploy the Application
 
 ```powershell
-# Make sure you're in the root folder
-cd <your-project-root>
+# Make sure you're in the project root folder
+cd "D:\l300\TechWorkshop-L300-GitHub-Copilot-and-platform"
+# Or on Mac/Linux: cd ~/Projects/TechWorkshop-L300-GitHub-Copilot-and-platform
 
 # Deploy to Azure
 azd deploy
@@ -490,34 +590,66 @@ azd deploy
 
 > ⏰ **Wait Time:** 3-5 minutes for deployment
 
+After deployment, you'll see output like:
+```
+Deploying services (azd deploy)
+  (✓) Done: Deploying service web
+  - Endpoint: https://app-xxxxx.azurewebsites.net/
+
+SUCCESS: Your application was deployed to Azure
+```
+
+> 📝 **Write down your App URL:** `https://_____________________.azurewebsites.net`
+
 ### Step 7.2: Configure App Settings
 
+First, get your App Service name:
+
 ```powershell
-# Set the required configuration in Azure
+# Get your App Service name from AZD
+azd env get-values | Select-String "AZURE_APP_SERVICE"
+
+# If that doesn't work, list your web apps
+az webapp list --resource-group $resourceGroup --query "[].name" -o tsv
+```
+
+Then configure the settings (replace `<your-app-service-name>` with the actual name like `app-xxxxx`):
+
+```powershell
+# Set app configuration
 az webapp config appsettings set `
-  --name <your-app-service-name> `
-  --resource-group <your-resource-group> `
+  --name "<your-app-service-name>" `
+  --resource-group $resourceGroup `
   --settings `
     ContentSafety__Endpoint="https://cs-zavastore.cognitiveservices.azure.com/" `
     Foundry__Endpoint="https://models.inference.ai.azure.com" `
     Foundry__ModelName="Phi-4"
 ```
 
+> 💡 **Note:** Azure uses double underscores `__` to represent nested JSON settings (like `ContentSafety:Endpoint`)
+
 ### Step 7.3: Assign Managed Identity Permissions
 
+The App Service needs permission to access Content Safety:
+
 ```powershell
-# Get the App Service's managed identity
+# Get the App Service's managed identity principal ID
 $principalId = az webapp identity show `
-  --name <your-app-service-name> `
-  --resource-group <your-resource-group> `
+  --name "<your-app-service-name>" `
+  --resource-group $resourceGroup `
   --query principalId -o tsv
 
-# Grant Content Safety access
+# Verify we got an ID (should be a GUID like 510f3e02-d21e-4fa8-991a-4d67b0592004)
+Write-Host "App Service Principal ID: $principalId"
+
+# Grant Content Safety access to the App Service
 az role assignment create `
   --role "Cognitive Services User" `
   --assignee $principalId `
-  --scope "/subscriptions/<your-subscription>/resourceGroups/<your-resource-group>/providers/Microsoft.CognitiveServices/accounts/cs-zavastore"
+  --scope "/subscriptions/$subscriptionId/resourceGroups/$resourceGroup/providers/Microsoft.CognitiveServices/accounts/cs-zavastore"
 ```
+
+> 💡 **What is Managed Identity?** Instead of using passwords or API keys, Azure services can authenticate to each other using their identity. This is more secure because there are no secrets to leak!
 
 ### Step 7.4: Test Your Deployed App!
 
@@ -537,12 +669,21 @@ az role assignment create `
 1. Make sure you're logged into GitHub in VS Code
 2. Check that your GitHub account has Copilot access
 3. Try: `gh auth refresh`
+4. Restart VS Code
+
+### Problem: "Copilot Coding Agent not available"
+
+**Solution:**
+1. Copilot Coding Agent requires GitHub Copilot Enterprise or a trial
+2. Check your organization settings at: Settings → Copilot → Policies
+3. Make sure "Copilot coding agent" is enabled
 
 ### Problem: "dotnet command not found"
 
 **Solution:**
 1. Install .NET 8 SDK from https://dotnet.microsoft.com/download
 2. Restart your terminal after installation
+3. On Mac, you may need to add to PATH: `export PATH=$PATH:~/.dotnet`
 
 ### Problem: "Certificate error when running locally"
 
@@ -550,6 +691,14 @@ az role assignment create `
 ```powershell
 dotnet dev-certs https --trust
 ```
+Then restart the application.
+
+### Problem: "azd init fails" or "azure.yaml not found"
+
+**Solution:**
+1. Make sure you're in the project root folder (not `/src`)
+2. Check that `azure.yaml` exists in the root
+3. Try: `azd init --from-code`
 
 ### Problem: "azd provision fails"
 
@@ -557,20 +706,44 @@ dotnet dev-certs https --trust
 1. Make sure you're logged in: `azd auth login`
 2. Check your subscription: `az account show`
 3. Try with debug output: `azd provision --debug`
+4. Check for quota limits in your Azure subscription
 
-### Problem: "Chat returns errors"
+### Problem: "Chat returns 401 Unauthorized"
+
+**Solution:**
+1. Your GitHub token may have expired
+2. Refresh it: `gh auth refresh`
+3. Re-set the user secret:
+   ```powershell
+   $token = gh auth token
+   dotnet user-secrets set "Foundry:ApiKey" $token
+   ```
+
+### Problem: "Chat returns errors" or "Model not found"
 
 **Solution:**
 1. Check your user secrets: `dotnet user-secrets list`
-2. Verify the GitHub token is set correctly
-3. Make sure GitHub Models has access to Phi-4
+2. Verify the model name is exactly `Phi-4` (case-sensitive)
+3. Make sure you have GitHub Models access: https://github.com/marketplace/models
+4. Try a different model like `gpt-4o-mini`
 
 ### Problem: "Content Safety doesn't block unsafe content"
 
 **Solution:**
-1. Check the Content Safety endpoint in appsettings.json
-2. Verify RBAC permissions are assigned
-3. Check the application logs for errors
+1. Check the Content Safety endpoint in appsettings.json (no typos!)
+2. Verify RBAC permissions are assigned:
+   ```powershell
+   az role assignment list --assignee $(az ad signed-in-user show --query id -o tsv) --output table
+   ```
+3. Check the application logs: View → Output → Select ".NET Core" or "ASP.NET Core"
+4. Make sure ContentSafetyService is registered in Program.cs
+
+### Problem: "Resource group not found" or "Subscription not found"
+
+**Solution:**
+1. List your resource groups: `az group list --output table`
+2. List your subscriptions: `az account list --output table`
+3. Set the correct subscription: `az account set --subscription "Your Subscription Name"`
 
 ---
 
