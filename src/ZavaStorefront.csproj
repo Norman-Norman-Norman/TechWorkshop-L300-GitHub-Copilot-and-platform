@@ -1,13 +1,18 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>f2bed91a-501e-46f7-abd6-b65bccb7e5c8</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Azure.AI.Inference" Version="1.0.0-beta.5" />
+    <!-- Task 06.03: Azure AI Content Safety for Responsible AI -->
+    <PackageReference Include="Azure.AI.ContentSafety" Version="1.0.0" />
+    <!-- Azure Identity for DefaultAzureCredential (managed identity / CLI auth) -->
+    <PackageReference Include="Azure.Identity" Version="1.13.1" />
   </ItemGroup>
 
 </Project>

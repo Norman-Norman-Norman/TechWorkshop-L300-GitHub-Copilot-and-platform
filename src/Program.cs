@@ -19,6 +19,8 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<ProductService>();
 builder.Services.AddScoped<CartService>();
 builder.Services.AddScoped<FoundryService>();
+// Task 06.03: Register Content Safety Service for Responsible AI
+builder.Services.AddScoped<ContentSafetyService>();
 
 var app = builder.Build();
 
