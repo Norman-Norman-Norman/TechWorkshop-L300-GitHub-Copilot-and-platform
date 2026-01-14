@@ -1,0 +1,65 @@
+# GitHub Advanced Security - Dependency and Security Scanning
+# This workflow scans for vulnerable dependencies and security issues
+
+name: "Security Scan"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore src/ZavaStorefront.csproj
+
+    - name: Run dependency vulnerability scan
+      run: |
+        dotnet list src/ZavaStorefront.csproj package --vulnerable --include-transitive 2>&1 | tee vulnerability-report.txt
+        if grep -q "has the following vulnerable packages" vulnerability-report.txt; then
+          echo "::warning::Vulnerable packages detected! Review the report above."
+        fi
+
+    - name: Upload vulnerability report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: vulnerability-report
+        path: vulnerability-report.txt
+        retention-days: 30
+
+  secret-scan-check:
+    name: Secret Scan Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Check for potential secrets in code
+      run: |
+        echo "Scanning for potential secrets..."
+        # Check for common secret patterns (basic check - GitHub's secret scanning is more comprehensive)
+        if grep -rE "(password|secret|api_key|apikey|token)\s*[:=]\s*['\"][^'\"]{8,}" --include="*.cs" --include="*.json" --include="*.config" src/ 2>/dev/null; then
+          echo "::warning::Potential secrets found in code. Please review."
+        else
+          echo "No obvious secrets detected in code files."
+        fi
