@@ -8,12 +8,14 @@ A simple e-commerce storefront application built with .NET 6 ASP.NET MVC.
 - **Shopping Cart**: Add products to cart with session-based storage
 - **Cart Management**: View cart, update quantities, remove items
 - **Checkout**: Simple checkout process that clears cart and shows success message
+- **AI Chat**: Interactive chat interface powered by Microsoft Foundry Phi-4 model
 - **Responsive Design**: Mobile-friendly layout using Bootstrap 5
 
 ## Technology Stack
 
 - .NET 6
 - ASP.NET Core MVC
+- Azure.AI.Inference SDK (for Foundry integration)
 - Bootstrap 5
 - Bootstrap Icons
 - Session-based state management (no database)
@@ -24,19 +26,24 @@ A simple e-commerce storefront application built with .NET 6 ASP.NET MVC.
 ZavaStorefront/
 ├── Controllers/
 │   ├── HomeController.cs      # Products listing and add to cart
-│   └── CartController.cs       # Cart operations and checkout
+│   ├── CartController.cs       # Cart operations and checkout
+│   └── ChatController.cs       # AI chat functionality
 ├── Models/
 │   ├── Product.cs              # Product model
-│   └── CartItem.cs             # Cart item model
+│   ├── CartItem.cs             # Cart item model
+│   └── ChatMessage.cs          # Chat message model
 ├── Services/
 │   ├── ProductService.cs       # Static product data
-│   └── CartService.cs          # Session-based cart management
+│   ├── CartService.cs          # Session-based cart management
+│   └── FoundryService.cs       # Microsoft Foundry API integration
 ├── Views/
 │   ├── Home/
 │   │   └── Index.cshtml        # Products listing page
 │   ├── Cart/
 │   │   ├── Index.cshtml        # Shopping cart page
 │   │   └── CheckoutSuccess.cshtml  # Checkout success page
+│   ├── Chat/
+│   │   └── Index.cshtml        # AI chat page
 │   └── Shared/
 │       └── _Layout.cshtml      # Main layout with cart icon
 └── wwwroot/
@@ -114,5 +121,38 @@ The application includes structured logging for:
 - Adding products to cart
 - Cart operations (update, remove)
 - Checkout process
+- AI chat interactions and API calls
 
 Logs are written to console during development.
+
+## AI Chat Configuration
+
+The chat feature integrates with Microsoft Foundry Phi-4 model. Configuration can be provided via:
+
+### Option 1: appsettings.json (for non-sensitive configuration)
+```json
+{
+  "Foundry": {
+    "Endpoint": "https://<your-endpoint>.models.ai.azure.com",
+    "ModelName": "Phi-4",
+    "ApiKey": ""
+  }
+}
+```
+
+### Option 2: User Secrets (recommended for development)
+```bash
+dotnet user-secrets init
+dotnet user-secrets set "Foundry:Endpoint" "https://<your-endpoint>.models.ai.azure.com"
+dotnet user-secrets set "Foundry:ApiKey" "<your-api-key>"
+dotnet user-secrets set "Foundry:ModelName" "Phi-4"
+```
+
+### Option 3: Environment Variables (for production)
+```bash
+export Foundry__Endpoint="https://<your-endpoint>.models.ai.azure.com"
+export Foundry__ApiKey="<your-api-key>"
+export Foundry__ModelName="Phi-4"
+```
+
+**Note**: The chat feature will display a configuration error message if the endpoint and API key are not configured. The application will still run and other features will work normally.
